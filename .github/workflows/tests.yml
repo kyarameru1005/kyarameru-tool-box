@@ -23,3 +23,17 @@ jobs:
 
       - name: Run tests
         run: python -m pytest -q
+
+  agents-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate repository AGENTS.md
+        run: |
+          bash toolbox/skills/agents-md-writer/scripts/check_agents_md.sh AGENTS.md
+
+      - name: Validate global AGENTS.md template
+        run: |
+          bash toolbox/skills/agents-md-writer/scripts/check_agents_md.sh toolbox/AGENTS.md
