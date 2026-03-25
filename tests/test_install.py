@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -144,3 +145,116 @@ def test_uninstall_removes_only_managed(tmp_path: Path):
     assert not (fake_home / ".codex" / "skills" / "plan-worker").exists()
     assert not (fake_home / ".codex" / "AGENTS.md").exists()
     assert not (fake_home / ".codex" / installer.MANIFEST_FILENAME).exists()
+
+
+def write_file(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+
+
+def setup_policy_repo(tmp_path: Path, workflow_content: str) -> None:
+    policy_script = Path(__file__).resolve().parents[1] / "scripts" / "policy-check.sh"
+    write_file(
+        tmp_path / "AGENTS.md",
+        "# AGENTS\n目的\n優先\n応答\n実行\nGit\nログ\n命名\nkebab-case\nPR本文を正本とする\n",
+    )
+    write_file(
+        tmp_path / "toolbox" / "AGENTS.md",
+        "# AGENTS\n目的\n優先\n応答\n実行\nGit\nログ\n命名\nkebab-case\nPR本文を正本とする\n",
+    )
+    write_file(
+        tmp_path / ".github" / "workflows" / "tests.yml",
+        workflow_content,
+    )
+    write_file(
+        tmp_path / "toolbox" / "skills" / "agents-md-writer" / "scripts" / "check_agents_md.sh",
+        "#!/usr/bin/env bash\nset -euo pipefail\necho \"[OK] mock check: $1\"\n",
+    )
+    write_file(
+        tmp_path / "docs" / "pr-template.md",
+        "## 目的\n- test\n\n## 主な変更点\n- test\n\n## 検証結果\n- test\n",
+    )
+    write_file(
+        tmp_path / "scripts" / "create-pr.sh",
+        "#!/usr/bin/env bash\nset -euo pipefail\necho \"mock\"\n",
+    )
+    write_file(tmp_path / "scripts" / "policy-check.sh", policy_script.read_text(encoding="utf-8"))
+    subprocess.run(["chmod", "+x", str(tmp_path / "scripts" / "create-pr.sh")], check=True)
+    subprocess.run(["chmod", "+x", str(tmp_path / "scripts" / "policy-check.sh")], check=True)
+    subprocess.run(
+        ["chmod", "+x", str(tmp_path / "toolbox" / "skills" / "agents-md-writer" / "scripts" / "check_agents_md.sh")],
+        check=True,
+    )
+
+
+def test_policy_check_passes_with_required_files_and_workflow(tmp_path: Path):
+    setup_policy_repo(
+        tmp_path,
+        "name: tests\non:\n  push:\n  pull_request:\njobs:\n  tests:\n    runs-on: ubuntu-latest\n  harness:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bash scripts/harness.sh\n  agents-policy:\n    runs-on: ubuntu-latest\n",
+    )
+
+    result = subprocess.run(
+        ["bash", "scripts/policy-check.sh"],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "[DONE] policy checks passed" in result.stdout
+
+
+def test_policy_check_fails_when_workflow_is_missing(tmp_path: Path):
+    setup_policy_repo(
+        tmp_path,
+        "name: tests\non:\n  push:\n  pull_request:\njobs:\n  tests:\n    runs-on: ubuntu-latest\n  harness:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bash scripts/harness.sh\n  agents-policy:\n    runs-on: ubuntu-latest\n",
+    )
+    (tmp_path / ".github" / "workflows" / "tests.yml").unlink()
+
+    result = subprocess.run(
+        ["bash", "scripts/policy-check.sh"],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "[ERROR] missing file: .github/workflows/tests.yml" in result.stdout
+
+
+def test_policy_check_fails_when_harness_job_is_missing(tmp_path: Path):
+    setup_policy_repo(
+        tmp_path,
+        "name: tests\non:\n  push:\n  pull_request:\njobs:\n  tests:\n    runs-on: ubuntu-latest\n  agents-policy:\n    runs-on: ubuntu-latest\n",
+    )
+
+    result = subprocess.run(
+        ["bash", "scripts/policy-check.sh"],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "workflow has harness job" in result.stdout
+
+
+def test_policy_check_fails_when_pr_template_lacks_required_section(tmp_path: Path):
+    setup_policy_repo(
+        tmp_path,
+        "name: tests\non:\n  push:\n  pull_request:\njobs:\n  tests:\n    runs-on: ubuntu-latest\n  harness:\n    runs-on: ubuntu-latest\n    steps:\n      - run: bash scripts/harness.sh\n  agents-policy:\n    runs-on: ubuntu-latest\n",
+    )
+    write_file(
+        tmp_path / "docs" / "pr-template.md",
+        "## 目的\n- test\n\n## 主な変更点\n- test\n",
+    )
+
+    result = subprocess.run(
+        ["bash", "scripts/policy-check.sh"],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode != 0
+    assert "pr template has 検証結果 section" in result.stdout

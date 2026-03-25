@@ -69,6 +69,24 @@ bash scripts/harness.sh --quick
 - `No module named pytest` の場合は `.venv` を有効化して `python -m pip install -e '.[dev]'` を実行する。
 - `scripts/harness.sh` は `.venv/bin/python` が存在すれば自動で優先利用する。
 
+policy チェックのみを単体実行する場合:
+
+```bash
+bash scripts/policy-check.sh
+```
+
+PR作成時はテンプレートを使う:
+
+```bash
+gh pr create --title "<title>" --body-file docs/pr-template.md
+```
+
+補助スクリプトでPR作成する場合:
+
+```bash
+bash scripts/create-pr.sh "<title>"
+```
+
 ## CI
 
 GitHub Actions で `push` / `pull_request` 時にテストを自動実行します。

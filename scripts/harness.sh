@@ -57,10 +57,6 @@ fi
 
 run_step "REGRESSION" "$PYTHON_BIN -m pytest -q"
 
-run_step "POLICY" "test -f AGENTS.md"
-run_step "POLICY" "test -f toolbox/AGENTS.md"
-run_step "POLICY" "test -f .github/workflows/tests.yml"
-run_step "POLICY" "bash toolbox/skills/agents-md-writer/scripts/check_agents_md.sh AGENTS.md"
-run_step "POLICY" "bash toolbox/skills/agents-md-writer/scripts/check_agents_md.sh toolbox/AGENTS.md"
+run_step "POLICY" "bash scripts/policy-check.sh"
 
 echo "[DONE] all phases passed"
