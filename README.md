@@ -45,6 +45,30 @@ python3 -m pip install -e '.[dev]'
 python3 -m pytest -q
 ```
 
+## ハーネス実行
+
+検証を `smoke -> regression -> policy` の順で実行します。
+
+```bash
+bash scripts/harness.sh
+```
+
+`smoke` のみを実行する場合:
+
+```bash
+bash scripts/harness.sh --quick
+```
+
+失敗時は以下を表示して終了します。
+- 失敗フェーズ
+- 失敗コマンド
+- 終了コード
+- 再現コマンド
+
+トラブルシュート:
+- `No module named pytest` の場合は `.venv` を有効化して `python -m pip install -e '.[dev]'` を実行する。
+- `scripts/harness.sh` は `.venv/bin/python` が存在すれば自動で優先利用する。
+
 ## CI
 
 GitHub Actions で `push` / `pull_request` 時にテストを自動実行します。
